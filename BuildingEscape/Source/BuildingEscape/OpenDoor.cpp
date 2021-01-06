@@ -3,6 +3,8 @@
 
 #include "OpenDoor.h"
 
+#define		OUT
+
 // Sets default values for this component's properties
 UOpenDoor::UOpenDoor()
 {
@@ -19,37 +21,52 @@ void UOpenDoor::BeginPlay()
 {
 	Super::BeginPlay();
 	Owner = GetOwner();
-	ActorThatOpens = GetWorld()->GetFirstPlayerController()->GetPawn();
+	if (Owner == nullptr) {
+	UE_LOG(LogTemp, Error, TEXT("Owner component not found, in the ActorComponent OpenDoor"));
+		return;
+	}
+	if (!PressurePlate) {
+		UE_LOG(LogTemp, Error, TEXT("PressurePlate not found in %s"), *Owner->GetName());
+		return;
+	}
 
 	// ...
 	
-}
-
-void UOpenDoor::OpenDoor()
-{
-	Owner->SetActorRotation(FRotator(0.0f, OpenAngle, 0.0f));
-}
-
-void UOpenDoor::CloseDoor()
-{
-	Owner->SetActorRotation(FRotator(0.0f, 0, 0.0f));
 }
 
 // Called every frame
 void UOpenDoor::TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction)
 {
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
-	if (PressurePlate->IsOverlappingActor(ActorThatOpens))
+
+
+	if(GetTotalMassOfActorsOnPlate() > TriggerMass)	
 	{
-		OpenDoor();
-		LastDoorOpenTime = GetWorld()->GetTimeSeconds();
-}
-	if ((GetWorld()->GetTimeSeconds() - LastDoorOpenTime) > DoorCloseDelay) 
-	{
-		//UE_LOG(LogTemp, Warning, TEXT("%d"), LastDoorOpenTime);
-		CloseDoor();
+		OnOpen.Broadcast();
+		UE_LOG(LogTemp, Warning, TEXT("Total mass = %f"), GetTotalMassOfActorsOnPlate());
+	} else {
+		OnClose.Broadcast();
 	}
 
 	// ...
+}
+
+float UOpenDoor::GetTotalMassOfActorsOnPlate()
+{
+	float TotalMass = 0.0f;
+	// Find all the overlapping actors
+	TArray<AActor*> OverlappingActors;
+	if (PressurePlate == nullptr) return TotalMass;
+	PressurePlate->GetOverlappingActors(OUT OverlappingActors);
+	// Iterate through them adding their mass
+	for (const auto& actor: OverlappingActors) {
+		//UE_LOG(LogTemp, Warning, TEXT("Found %s"), *MyInput->GetName());        
+		float mass = actor->FindComponentByClass<UPrimitiveComponent>()->GetMass();
+		//UE_LOG(LogTemp, Warning, TEXT("%s: mass = %f"), *actor->GetName(), mass);
+		TotalMass += mass;
+		//UE_LOG(LogTemp, Warning, TEXT("Found %f"), TotalMass);
+	}
+
+	return TotalMass;
 }
 
